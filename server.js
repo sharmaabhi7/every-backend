@@ -50,6 +50,11 @@ app.get('/api/test-env', (req, res) => {
   });
 });
 
+
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
