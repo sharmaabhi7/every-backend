@@ -23,8 +23,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST"]
+    origin: process.env.FRONTEND_URL || "http://localhost:5173" || "https://legendary-empanada-7a799c.netlify.app",
+    methods: ["GET", "POST","PUT","DELETE"],
+    credentials: true
   }
 });
 
@@ -48,11 +49,6 @@ app.get('/api/test-env', (req, res) => {
     mongoUri: process.env.MONGO_URI ? 'Set' : 'Not set',
     jwtSecret: process.env.JWT_SECRET ? 'Set' : 'Not set'
   });
-});
-
-
-app.get('/', (req, res) => {
-  res.send('Hello World!');
 });
 
 // Routes
