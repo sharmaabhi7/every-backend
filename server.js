@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
@@ -41,6 +42,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 
+// Serve static files for PDFs
+app.use('/userpdf', express.static(path.join(__dirname, 'userpdf')));
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('Connected to MongoDB'))
@@ -54,6 +58,23 @@ app.get('/api/test-env', (req, res) => {
     mongoUri: process.env.MONGO_URI ? 'Set' : 'Not set',
     jwtSecret: process.env.JWT_SECRET ? 'Set' : 'Not set'
   });
+});
+
+// Public site config route (no auth required)
+app.get('/api/site-config', async (req, res) => {
+  try {
+    const SiteConfig = require('./models/SiteConfig');
+    let config = await SiteConfig.findOne();
+
+    if (!config) {
+      config = new SiteConfig();
+      await config.save();
+    }
+
+    res.status(200).json({ config });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
 });
 
 // Routes

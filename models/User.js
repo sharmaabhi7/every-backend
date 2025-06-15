@@ -63,6 +63,27 @@ const userSchema = new mongoose.Schema({
     enum: ['deadline_exceeded', 'manual', 'auto_24h_after_submission'],
     default: 'deadline_exceeded'
   },
+  accuracyResult: {
+    correct: {
+      type: Number,
+      default: 0
+    },
+    wrong: {
+      type: Number,
+      default: 0
+    },
+    percentage: {
+      type: Number,
+      default: 0
+    },
+    reviewedAt: {
+      type: Date
+    }
+  },
+  hasAccuracyResult: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -2,9 +2,14 @@ const User = require('../models/User');
 const Work = require('../models/Work');
 const Agreement = require('../models/Agreement');
 const SignedAgreement = require('../models/SignedAgreement');
+const SiteConfig = require('../models/SiteConfig');
+const AdminPDF = require('../models/AdminPDF');
+const WorkReview = require('../models/WorkReview');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
+const multer = require('multer');
+const path = require('path');
 // Email transporter setup
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -622,6 +627,215 @@ exports.sendSignedAgreementPDF = async (req, res) => {
     res.status(200).json({
       message: `Signed agreement PDF sent to ${signedAgreement.userName} successfully`
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Search users
+exports.searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.status(400).json({ message: 'Search query must be at least 2 characters' });
+    }
+
+    const searchRegex = new RegExp(q.trim(), 'i');
+
+    const users = await User.find({
+      $or: [
+        { name: searchRegex },
+        { email: searchRegex },
+        { mobileNumber: searchRegex },
+        { alternativeMobileNumber: searchRegex }
+      ]
+    }).select('name email mobileNumber role isVerified isSignedAgreement workSubmitted signature').limit(20);
+
+    res.status(200).json({ users });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get site configuration
+exports.getSiteConfig = async (req, res) => {
+  try {
+    let config = await SiteConfig.findOne();
+
+    if (!config) {
+      // Create default config if none exists
+      config = new SiteConfig();
+      await config.save();
+    }
+
+    res.status(200).json({ config });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update site configuration
+exports.updateSiteConfig = async (req, res) => {
+  try {
+    const { navbarTitle, footerContactNumber, footerAddress, footerEmail } = req.body;
+
+    let config = await SiteConfig.findOne();
+
+    if (!config) {
+      config = new SiteConfig();
+    }
+
+    config.navbarTitle = navbarTitle || config.navbarTitle;
+    config.footerContactNumber = footerContactNumber || config.footerContactNumber;
+    config.footerAddress = footerAddress || config.footerAddress;
+    config.footerEmail = footerEmail || config.footerEmail;
+    config.lastUpdated = new Date();
+    config.updatedBy = req.user.userId;
+
+    await config.save();
+
+    res.status(200).json({
+      message: 'Site configuration updated successfully',
+      config
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Configure multer for PDF uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../userpdf/'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'admin-' + uniqueSuffix + '.pdf');
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed!'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
+
+// Get all admin PDFs
+exports.getAllPDFs = async (req, res) => {
+  try {
+    const pdfs = await AdminPDF.find()
+      .populate('uploadedBy', 'name email')
+      .sort({ uploadedAt: -1 });
+
+    res.status(200).json({ pdfs });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Upload PDF
+exports.uploadPDF = [
+  upload.single('pdf'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No PDF file uploaded' });
+      }
+
+      const { title, description } = req.body;
+
+      if (!title || !title.trim()) {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+
+      const newPDF = new AdminPDF({
+        title: title.trim(),
+        description: description || '',
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        uploadedBy: req.user.userId
+      });
+
+      await newPDF.save();
+
+      res.status(201).json({
+        message: 'PDF uploaded successfully',
+        pdf: newPDF
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  }
+];
+
+// Toggle PDF active status
+exports.togglePDFStatus = async (req, res) => {
+  try {
+    const { pdfId } = req.params;
+    const { isActive } = req.body;
+
+    const pdf = await AdminPDF.findById(pdfId);
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+
+    pdf.isActive = isActive;
+    pdf.lastModified = new Date();
+    await pdf.save();
+
+    res.status(200).json({
+      message: `PDF ${isActive ? 'activated' : 'deactivated'} successfully`,
+      pdf
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Delete PDF
+exports.deletePDF = async (req, res) => {
+  try {
+    const { pdfId } = req.params;
+
+    const pdf = await AdminPDF.findById(pdfId);
+    if (!pdf) {
+      return res.status(404).json({ message: 'PDF not found' });
+    }
+
+    // Delete file from filesystem
+    try {
+      await fs.unlink(pdf.filePath);
+    } catch (fileError) {
+      console.error('Error deleting file:', fileError);
+    }
+
+    await AdminPDF.findByIdAndDelete(pdfId);
+
+    res.status(200).json({ message: 'PDF deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get active PDFs for users
+exports.getActivePDFs = async (req, res) => {
+  try {
+    const pdfs = await AdminPDF.find({ isActive: true })
+      .select('title description filename originalName fileSize uploadedAt')
+      .sort({ uploadedAt: -1 });
+
+    res.status(200).json({ pdfs });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

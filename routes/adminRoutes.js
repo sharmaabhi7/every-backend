@@ -39,4 +39,18 @@ router.post('/signed-agreements/:agreementId/send-pdf', adminController.sendSign
 router.put('/agreements/:agreementId', adminController.updateAgreement);
 router.delete('/agreements/:agreementId', adminController.deleteAgreement);
 
+// Search routes
+router.get('/search-users', adminController.searchUsers);
+
+// Site configuration routes (GET is public for frontend to load config)
+router.get('/site-config', adminController.getSiteConfig);
+router.put('/site-config', adminController.updateSiteConfig);
+
+// PDF management routes
+router.get('/pdfs', adminController.getAllPDFs);
+router.post('/pdfs/upload', adminController.uploadPDF);
+router.patch('/pdfs/:pdfId/toggle', adminController.togglePDFStatus);
+router.delete('/pdfs/:pdfId', adminController.deletePDF);
+router.get('/pdfs/active', adminController.getActivePDFs);
+
 module.exports = router;

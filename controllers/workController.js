@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Work = require('../models/Work');
+const WorkReview = require('../models/WorkReview');
 const nodemailer = require('nodemailer');
 
 // Email transporter setup
@@ -209,9 +210,21 @@ exports.submitWork = async (req, res) => {
     user.workSubmitted = true;
     await user.save();
 
+    // Create work review record
+    const workReview = new WorkReview({
+      userId: user._id,
+      workId: work._id,
+      submittedAt: submissionTime,
+      autoReviewScheduledAt: new Date(submissionTime.getTime() + (24 * 60 * 60 * 1000))
+    });
+    await workReview.save();
+
     // Schedule 24-hour penalty check
     const { scheduleAutoPenalty } = require('../services/automationService');
     scheduleAutoPenalty(user._id, submissionTime);
+
+    // Schedule automatic accuracy assignment after 24 hours
+    scheduleAccuracyAssignment(user._id, submissionTime);
 
     res.status(200).json({
       message: 'Work submitted successfully! Your work will be reviewed in 24 hours.',
@@ -258,4 +271,71 @@ exports.checkDeadlines = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
+};
+
+// Schedule accuracy assignment after 24 hours
+const scheduleAccuracyAssignment = (userId, submissionTime) => {
+  const reviewTime = new Date(submissionTime.getTime() + (24 * 60 * 60 * 1000));
+
+  setTimeout(async () => {
+    try {
+      await assignAccuracyResult(userId);
+    } catch (error) {
+      console.error('Error assigning accuracy result:', error);
+    }
+  }, reviewTime.getTime() - Date.now());
+};
+
+// Assign random accuracy result
+const assignAccuracyResult = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const workReview = await WorkReview.findOne({ userId, isReviewed: false });
+
+    if (!user || !workReview) {
+      console.log('User or work review not found for accuracy assignment');
+      return;
+    }
+
+    // Predefined accuracy results
+    const accuracyResults = [
+      { correct: 172, wrong: 28, percentage: 86 },
+      { correct: 164, wrong: 36, percentage: 82 },
+      { correct: 174, wrong: 26, percentage: 87 },
+      { correct: 161, wrong: 38, percentage: 81 },
+      { correct: 176, wrong: 24, percentage: 88 }
+    ];
+
+    // Randomly select one result
+    const randomResult = accuracyResults[Math.floor(Math.random() * accuracyResults.length)];
+    const reviewedAt = new Date();
+
+    // Update work review
+    workReview.accuracyResult = randomResult;
+    workReview.isReviewed = true;
+    workReview.reviewedAt = reviewedAt;
+    workReview.reviewStatus = 'completed';
+    await workReview.save();
+
+    // Update user with accuracy result
+    user.accuracyResult = {
+      ...randomResult,
+      reviewedAt
+    };
+    user.hasAccuracyResult = true;
+    await user.save();
+
+    console.log(`Accuracy result assigned to user ${user.name}: ${randomResult.percentage}%`);
+  } catch (error) {
+    console.error('Error in assignAccuracyResult:', error);
+  }
+};
+
+module.exports = {
+  startWork: exports.startWork,
+  saveDraft: exports.saveDraft,
+  getDraft: exports.getDraft,
+  submitWork: exports.submitWork,
+  checkDeadlines: exports.checkDeadlines,
+  assignAccuracyResult
 };
