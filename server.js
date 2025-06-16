@@ -76,7 +76,9 @@ app.get('/api/site-config', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
+app.get('/', (req, res) => {
+  res.send('Hello World');
+});
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
