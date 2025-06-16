@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSP Test Page</title>
+    <!-- Google Fonts - should work with our CSP -->
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            margin: 40px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success {
+            color: #22c55e;
+            background: #dcfce7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .error {
+            color: #ef4444;
+            background: #fef2f2;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .test-item {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Content Security Policy Test</h1>
+        <p>This page tests various CSP directives to ensure they're working correctly.</p>
+        
+        <div class="test-item">
+            <h3>✅ Google Fonts Test</h3>
+            <p>If you can see this text in Open Sans font, Google Fonts are loading correctly.</p>
+            <div class="success">Google Fonts should be working with our CSP configuration.</div>
+        </div>
+        
+        <div class="test-item">
+            <h3>🔧 Inline Script Test</h3>
+            <button onclick="testInlineScript()">Test Inline Script</button>
+            <div id="inline-result"></div>
+        </div>
+        
+        <div class="test-item">
+            <h3>📡 Fetch API Test</h3>
+            <button onclick="testFetch()">Test API Call</button>
+            <div id="fetch-result"></div>
+        </div>
+        
+        <div class="test-item">
+            <h3>🖼️ Image Test</h3>
+            <p>Testing different image sources:</p>
+            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiMyMmM1NWUiLz4KPHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTkgMTJMMTEgMTRMMTUgMTAiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo8L3N2Zz4K" alt="Data URL Image" style="margin: 5px;">
+            <div class="success">Data URL images should work.</div>
+        </div>
+    </div>
+
+    <script>
+        function testInlineScript() {
+            const result = document.getElementById('inline-result');
+            result.innerHTML = '<div class="success">✅ Inline scripts are working!</div>';
+        }
+        
+        async function testFetch() {
+            const result = document.getElementById('fetch-result');
+            try {
+                const response = await fetch('/api/test-csp');
+                const data = await response.json();
+                result.innerHTML = `<div class="success">✅ Fetch API working! CSP Header: ${data.headers['content-security-policy'] ? 'Set' : 'Not set'}</div>`;
+            } catch (error) {
+                result.innerHTML = `<div class="error">❌ Fetch failed: ${error.message}</div>`;
+            }
+        }
+        
+        // Test console logging
+        console.log('CSP Test page loaded successfully');
+        
+        // Check if CSP violations are being reported
+        document.addEventListener('securitypolicyviolation', (e) => {
+            console.error('CSP Violation:', e.violatedDirective, e.blockedURI);
+        });
+    </script>
+</body>
+</html>
